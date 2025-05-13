@@ -1,0 +1,8 @@
+source_dir: ../data/passport/images/src
+extensions:
+  - .jpg
+  - .jpeg
+  - .png
+annotations_path: ../data/passport/annotations/annotations.yml
+num_points: 6
+display_height: 900
