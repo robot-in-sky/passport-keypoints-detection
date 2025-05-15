@@ -2,11 +2,11 @@ MODEL:
   NAME: pose_hrnet
   NUM_JOINTS: 6
   IMAGE_SIZE:
-  - 192
-  - 256
+    - 288
+    - 384
   HEATMAP_SIZE:
-  - 48
-  - 64
+    - 72
+    - 96
   EXTRA:
     PRETRAINED_LAYERS:
       - 'conv1'

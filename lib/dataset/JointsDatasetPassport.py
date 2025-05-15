@@ -147,18 +147,19 @@ class JointsDatasetPassport(Dataset):
                 kernel_size = random.choice([3, 5, 7])
                 data_numpy = cv2.GaussianBlur(data_numpy, (kernel_size, kernel_size), 0)
 
-            # 2. Изменение света/цвета (с вероятностью 40%)
-            if random.random() <= 0.4:
-                # Яркость: умножение на коэффициент [0.7, 1.3]
-                brightness_factor = random.uniform(0.7, 1.3)
+            # 2. Яркость: умножение на коэффициент (с вероятностью 30%)
+            if random.random() <= 0.3:
+                brightness_factor = random.uniform(0.8, 1.2)
                 data_numpy = np.clip(data_numpy * brightness_factor, 0, 255).astype(np.uint8)
 
-                # Контраст: линейное преобразование (alpha * pixel + beta)
+            # 3. Контраст: линейное преобразование (alpha * pixel + beta)
+            if random.random() <= 0.3:
                 contrast_alpha = random.uniform(0.8, 1.2)
                 contrast_beta = random.uniform(-20, 20)
                 data_numpy = np.clip(contrast_alpha * data_numpy + contrast_beta, 0, 255).astype(np.uint8)
 
-                # Цветовой баланс: изменение интенсивности RGB-каналов
+            # 4. Цветовой баланс: изменение интенсивности RGB-каналов
+            if random.random() <= 0.3:
                 for channel in range(3):
                     color_factor = random.uniform(0.8, 1.2)
                     data_numpy[:, :, channel] = np.clip(

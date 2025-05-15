@@ -1,5 +1,5 @@
 source_dir: ../data/passport/images/src
 extensions: [".jpg", ".png"]
 model_yml: ./model.yml
-model_path: ../output/passport/pose_hrnet/w32_256x192_adam_lr1e-3/final_state.pth
+model_path: ../output/passport/pose_hrnet/w32_384x288_adam_lr1e-3/final_state.pth
 display_height: 600
