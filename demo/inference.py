@@ -1,41 +1,11 @@
 from pathlib import Path
-from typing import Any
 
 import cv2
 import numpy as np
-import torch
-import torchvision.transforms as transforms
 import yaml
-from yacs.config import CfgNode as CN
 from pydantic import BaseModel, Field
+from keypoints_detector import KeypointsDetector
 
-# Предполагается, что HRNet находится в ../lib
-import sys
-sys.path.append("../lib")
-from core.inference import get_final_preds
-from utils.transforms import get_affine_transform
-import models
-
-# Константы для нормализации (ImageNet)
-IMAGENET_MEAN = [0.485, 0.456, 0.406]  # Средние значения RGB для ImageNet
-IMAGENET_STD = [0.229, 0.224, 0.225]   # Стандартные отклонения RGB для ImageNet
-
-# Константа для масштабирования
-PIXEL_STD = 200  # Стандартный размер области интереса в пикселях (HRNet/COCO)
-
-# Контекст устройства
-# CTX = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-CTX = torch.device('cpu')
-
-# Имена ключевых точек для паспорта
-PASSPORT_KEYPOINT_INDEXES = {
-    0: 'point1',
-    1: 'point2',
-    2: 'point3',
-    3: 'point4',
-    4: 'point5',
-    5: 'point6'
-}
 
 class InferenceConfig(BaseModel):
     source_dir: Path = Field(..., description="Directory with source images")
@@ -50,6 +20,7 @@ class InferenceConfig(BaseModel):
             data = yaml.safe_load(f)
         return cls(**data)
 
+
 class InferenceApp:
     def __init__(self, config: InferenceConfig) -> None:
         self.config = config
@@ -62,20 +33,12 @@ class InferenceApp:
         self.display_image = None
         self.scale = 1.0
 
-        # Загрузка конфигурации модели
-        with config.model_yml.open("r", encoding="utf-8") as f:
-            model_cfg = CN(yaml.safe_load(f))
-
-        # Настройка HRNet
-        self.model = eval('models.' + model_cfg.MODEL.NAME + '.get_pose_net')(model_cfg, is_train=False)
-        self.model.load_state_dict(torch.load(config.model_path, map_location=CTX))
-        self.model.to(CTX)
-        self.model.eval()
-
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-        ])
+        # Инициализация детектора ключевых точек
+        self.detector = KeypointsDetector(
+            model_yml=config.model_yml,
+            model_path=config.model_path,
+            device='cpu'
+        )
 
         self.window_name = "Inference"
         cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
@@ -94,27 +57,8 @@ class InferenceApp:
         self.display_image = cv2.resize(self.current_image, (new_width, display_height), interpolation=cv2.INTER_AREA)
 
         # Предсказание ключевых точек
-        self.current_points = self.predict_keypoints()
-
-    def predict_keypoints(self) -> list[list[float]]:
-        with self.config.model_yml.open("r", encoding="utf-8") as f:
-            model_cfg = CN(yaml.safe_load(f))
-
-        image = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2RGB)
-        orig_height, orig_width = image.shape[:2]
-        input_w, input_h = model_cfg.MODEL.IMAGE_SIZE  # [192, 256] — (width, height)
-        center = np.array([orig_width / 2, orig_height / 2], dtype=np.float32)
-        scale = np.array([orig_width / PIXEL_STD, orig_height / PIXEL_STD], dtype=np.float32)
-
-        trans = get_affine_transform(center, scale, 0, [input_w, input_h])
-        input_image = cv2.warpAffine(image, trans, (input_w, input_h), flags=cv2.INTER_LINEAR)
-        model_input = self.transform(input_image).unsqueeze(0).to(CTX)
-
-        with torch.no_grad():
-            output = self.model(model_input)
-
-        coords, _ = get_final_preds(model_cfg, output.cpu().numpy(), np.array([center]), np.array([scale]))
-        return coords[0].tolist()
+        image_rgb = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2RGB)
+        self.current_points = self.detector.predict_keypoints(image_rgb)
 
     def draw_interface(self, img: np.ndarray) -> np.ndarray:
         display = img.copy()
@@ -147,6 +91,7 @@ class InferenceApp:
                 self.index = min(len(self.images) - 1, self.index + 1)
             if key == ord("a") or key == 81:  # Left or 'a'
                 self.index = max(0, self.index - 1)
+
 
 if __name__ == "__main__":
     app_config = InferenceConfig.from_yaml(Path("inference.yml"))

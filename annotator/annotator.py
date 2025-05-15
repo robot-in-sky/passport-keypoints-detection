@@ -29,7 +29,6 @@ class ImageAnnotation:
 
 
 class AnnotatorApp:
-
     def __init__(self, config: AnnotatorConfig) -> None:
         self.config = config
         self.images = sorted([
@@ -49,7 +48,6 @@ class AnnotatorApp:
 
         self.run()
 
-
     def load_annotations(self) -> dict[str, ImageAnnotation]:
         if self.config.annotations_path.exists():
             with self.config.annotations_path.open("r", encoding="utf-8") as f:
@@ -62,12 +60,10 @@ class AnnotatorApp:
             }
         return {}
 
-
     def save_annotations(self) -> None:
         valid = [asdict(a) for a in self.annotations.values()]
         with self.config.annotations_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(valid, f, sort_keys=False, allow_unicode=True)
-
 
     def load_image(self) -> None:
         image_path = self.images[self.index]
@@ -83,7 +79,6 @@ class AnnotatorApp:
         image_name = image_path.name
         if image_name in self.annotations:
             self.current_points = self.annotations[image_name].points.copy()
-
 
     def on_click(self, event: int, x: int, y: int, flags: int, param: Any) -> None:  # noqa: PLR0913, ARG002
         if event != cv2.EVENT_LBUTTONDOWN:
@@ -101,7 +96,6 @@ class AnnotatorApp:
             image_name = self.images[self.index].name
             self.annotations[image_name] = ImageAnnotation(image_name=image_name, points=self.current_points.copy())
             self.save_annotations()
-
 
     def draw_interface(self, img: np.ndarray) -> np.ndarray:
         display = img.copy()
@@ -123,7 +117,6 @@ class AnnotatorApp:
         cv2.putText(display, help_text, (5, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         return display
 
-
     def reset_current(self) -> None:
         self.current_points.clear()
         image_name = self.images[self.index].name
@@ -131,11 +124,9 @@ class AnnotatorApp:
             del self.annotations[image_name]
             self.save_annotations()
 
-
     def undo_current(self) -> None:
         if self.current_points:
             self.current_points.pop()
-
 
     def run(self) -> None:
         while True:
