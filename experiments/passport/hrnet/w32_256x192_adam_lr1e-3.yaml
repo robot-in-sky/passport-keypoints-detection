@@ -97,6 +97,7 @@ TRAIN:
   LR: 0.001
   LR_FACTOR: 0.1
   LR_STEP:
+  - 40
   - 70
   - 90
   WD: 0.0001

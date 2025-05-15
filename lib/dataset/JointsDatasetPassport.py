@@ -17,15 +17,13 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from utils.transforms import get_affine_transform
-from utils.transforms import affine_transform
-from utils.transforms import fliplr_joints
+from utils.transforms import get_affine_transform, affine_transform, fliplr_joints
 
 
 logger = logging.getLogger(__name__)
 
 
-class JointsDataset(Dataset):
+class JointsDatasetPassport(Dataset):
     def __init__(self, cfg, root, image_set, is_train, transform=None):
         self.num_joints = 0
         self.pixel_std = 200
@@ -143,26 +141,61 @@ class JointsDataset(Dataset):
         r = 0
 
         if self.is_train:
-            if (np.sum(joints_vis[:, 0]) > self.num_joints_half_body
-                and np.random.rand() < self.prob_half_body):
-                c_half_body, s_half_body = self.half_body_transform(
-                    joints, joints_vis
-                )
+            # Аугментации изображения
+            # 1. Гауссово размытие (с вероятностью 30%)
+            if random.random() <= 0.3:
+                kernel_size = random.choice([3, 5, 7])
+                data_numpy = cv2.GaussianBlur(data_numpy, (kernel_size, kernel_size), 0)
 
-                if c_half_body is not None and s_half_body is not None:
-                    c, s = c_half_body, s_half_body
+            # 2. Изменение света/цвета (с вероятностью 40%)
+            if random.random() <= 0.4:
+                # Яркость: умножение на коэффициент [0.7, 1.3]
+                brightness_factor = random.uniform(0.7, 1.3)
+                data_numpy = np.clip(data_numpy * brightness_factor, 0, 255).astype(np.uint8)
+
+                # Контраст: линейное преобразование (alpha * pixel + beta)
+                contrast_alpha = random.uniform(0.8, 1.2)
+                contrast_beta = random.uniform(-20, 20)
+                data_numpy = np.clip(contrast_alpha * data_numpy + contrast_beta, 0, 255).astype(np.uint8)
+
+                # Цветовой баланс: изменение интенсивности RGB-каналов
+                for channel in range(3):
+                    color_factor = random.uniform(0.8, 1.2)
+                    data_numpy[:, :, channel] = np.clip(
+                        data_numpy[:, :, channel] * color_factor, 0, 255
+                    ).astype(np.uint8)
+
+            # Отключаем half_body_transform за ненадобностью
+            # if (np.sum(joints_vis[:, 0]) > self.num_joints_half_body
+            #     and np.random.rand() < self.prob_half_body):
+            #     c_half_body, s_half_body = self.half_body_transform(
+            #         joints, joints_vis
+            #     )
+
+            #     if c_half_body is not None and s_half_body is not None:
+            #         c, s = c_half_body, s_half_body
 
             sf = self.scale_factor
             rf = self.rotation_factor
+
             s = s * np.clip(np.random.randn()*sf + 1, 1 - sf, 1 + sf)
             r = np.clip(np.random.randn()*rf, -rf*2, rf*2) \
                 if random.random() <= 0.6 else 0
 
+            # flip не нужен, но мы его отключаем в конфиге
             if self.flip and random.random() <= 0.5:
                 data_numpy = data_numpy[:, ::-1, :]
                 joints, joints_vis = fliplr_joints(
                     joints, joints_vis, data_numpy.shape[1], self.flip_pairs)
                 c[0] = data_numpy.shape[1] - c[0] - 1
+
+            # Дополнительные аугментации
+            # случайный поворот на 90, 180 или 270 градусов с вероятностью 15%
+            dr = random.choice([90, 180, 270]) if random.random() <= 0.45 else 0
+            r = r + dr
+            if dr in [90, 270]:
+                s = s * 4 / 3
+
 
         trans = get_affine_transform(c, s, r, self.image_size)
         input = cv2.warpAffine(
