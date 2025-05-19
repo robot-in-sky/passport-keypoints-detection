@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 import yaml
 from pydantic import BaseModel, Field
+
+from validate import validate_pages
 from keypoints_detector import KeypointsDetector
 
 
@@ -32,6 +34,7 @@ class InferenceApp:
         self.current_image = None
         self.display_image = None
         self.scale = 1.0
+        self.is_valid = False
 
         # Инициализация детектора ключевых точек
         self.detector = KeypointsDetector(
@@ -60,21 +63,32 @@ class InferenceApp:
         image_rgb = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2RGB)
         self.current_points = self.detector.predict_keypoints(image_rgb)
 
+        # Валидация документа
+        self.is_valid = validate_pages(
+            self.current_points,
+            (orig_width, orig_height)
+        )
+
     def draw_interface(self, img: np.ndarray) -> np.ndarray:
         display = img.copy()
         for i, (x, y) in enumerate(self.current_points):
             display_x = int(x * self.scale)
             display_y = int(y * self.scale)
-            cv2.circle(display, (display_x, display_y), 6, (0, 0, 255), -1)
+            color = (0, 255, 0) if self.is_valid else (0, 0, 255)
+            cv2.circle(display, (display_x, display_y), 6, color, -1)
             cv2.putText(display, str(i + 1), (display_x + 5, display_y - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 1)
 
         image_name = self.images[self.index].name
-        status_text = f"{image_name} | {self.index + 1}/{len(self.images)} | {len(self.current_points)}/6 points"
+        status_text = f"{image_name} | {self.index + 1}/{len(self.images)} | {len(self.current_points)}/4 points"
+        validity_text = "VALID" if self.is_valid else "INVALID"
+        validity_color = (0, 255, 0) if self.is_valid else (0, 0, 255)
         help_text = "A/D: prev/next image, ESC: exit"
-        y_offset = img.shape[0] - 5
+
+        # Добавляем текст статуса
         cv2.putText(display, status_text, (5, 12), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-        cv2.putText(display, help_text, (5, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+        cv2.putText(display, validity_text, (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, validity_color, 2)
+        cv2.putText(display, help_text, (5, img.shape[0] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         return display
 
     def run(self) -> None:
